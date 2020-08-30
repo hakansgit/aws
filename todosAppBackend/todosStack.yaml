@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  Python backend on EC2 t2.micro w/ aws linux and RDS MySQL. Creates RDS and passes parameters to EC2 instance
+Parameters:
+  DBPassword:
+    Default: dbPassword
+    NoEcho: 'true'
+    Description: Database admin account password
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters.
+  AppPassword:
+    Default: appPassword
+    NoEcho: 'true'
+    Description: Database todos_user account password
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: must contain only alphanumeric characters. 
+Resources:
+  APIServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: ami-02354e95b39ca8dec
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref APIServerSecurityGroup
+      KeyName: MyThinkPadKeyPair
+      UserData: 
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              #!/bin/bash
+              yum update -y
+              yum install mysql -y
+              cat > config.txt << EOL
+              ${rdsURI}
+              ${userPass}
+              EOL
+              cat > init_script.sql << EOL
+              DROP DATABASE IF EXISTS todos_db;
+              CREATE DATABASE todos_db;
+              DROP USER IF EXISTS todos_user;
+              CREATE USER 'todos_user' IDENTIFIED BY '${userPass}';
+              GRANT ALL ON todos_db.* TO 'todos_user'@'%';
+              USE todos_db;
+              DROP TABLE IF EXISTS todos;
+              CREATE TABLE todos(
+                task_id INTEGER PRIMARY KEY AUTO_INCREMENT,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                is_done INTEGER NOT NULL DEFAULT 0 CHECK(is_done IN(0,1))
+              );
+              INSERT INTO todos (title, description, is_done)
+                VALUES
+                  ("Get groceries", "Apples and Oranges", 1 ),
+                  ("Call mom", "Don't skip this time", 0),
+                  ("Sleep", "At least for 6 hours", 0);
+              EOL
+              cat init_script.sql | mysql -h ${rdsURI} -u admin -p${adminPass}
+              yum install python3 -y
+              pip3 install flask
+              pip3 install flask_sqlalchemy
+              pip3 install pymysql
+              PY_APP_URL="https://raw.githubusercontent.com/hakansgit/aws/master/todosAppBackend/todo_server_rds.py"
+              curl -s --create-dirs -o "todo_server_rds.py" -L "$PY_APP_URL"
+              python3 todo_server_rds.py
+            - rdsURI: !GetAtt DBInstance.Endpoint.Address
+              adminPass: !Ref DBPassword
+              userPass: !Ref AppPassword
+  DBInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      AllocatedStorage: '20'
+      AutoMinorVersionUpgrade: true
+      DBInstanceClass: db.t2.micro
+      DBSecurityGroups:
+        - !Ref DBSecurityGroup
+      DeleteAutomatedBackups: true
+      Engine: MySQL
+      MasterUserPassword: !Ref DBPassword
+      MasterUsername: admin
+      MultiAZ: false
+      PubliclyAccessible: false
+  DBSecurityGroup:
+    Type: 'AWS::RDS::DBSecurityGroup'
+    Properties:
+      DBSecurityGroupIngress:
+        - EC2SecurityGroupName: !Ref APIServerSecurityGroup
+      GroupDescription: Frontend Access
+  APIServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Enable HTTP access via port 80 and SSH access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+Outputs:
+  APIServerURL:
+    Value: !Join 
+      - ''
+      - - 'http://'
+        - !GetAtt 
+          - APIServer
+          - PublicDnsName
+    Description: API Root
