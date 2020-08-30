@@ -64,6 +64,7 @@ Resources:
               yum install python3 -y
               pip3 install flask
               pip3 install flask_sqlalchemy
+              pip3 install flask-cors
               pip3 install pymysql
               PY_APP_URL="https://raw.githubusercontent.com/hakansgit/aws/master/todosAppBackend/todo_server_rds.py"
               curl -s --create-dirs -o "todo_server_rds.py" -L "$PY_APP_URL"
