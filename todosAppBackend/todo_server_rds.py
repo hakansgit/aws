@@ -1,8 +1,13 @@
 # Import Flask modules
 from flask import Flask, jsonify, abort, request
 from flask_sqlalchemy import SQLAlchemy
-# Create an object named app
+from flask_cors import CORS, cross_origin
+
+# Create an object named app with CORS
 app = Flask(__name__)
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
+
 # Configure sqlite database
 fo = open("config.txt", "r")
 db_uri = fo.readline().strip()
@@ -48,7 +53,7 @@ def insert_todo(title, description):
     SELECT * FROM todos WHERE task_id={result.lastrowid};
     """
     row = db.session.execute(query).first()
-    return {'task_id': row[0], 'title': row[1], 'description': row[2], 'is_sold': row[3]}
+    return {'task_id': row[0], 'title': row[1], 'description': row[2], 'is_done': row[3]}
 
 # update a todo in db
 def change_todo(todo):
@@ -65,7 +70,7 @@ def change_todo(todo):
     SELECT * FROM todos WHERE task_id={todo['task_id']};
     """
     row = db.session.execute(query).first()
-    return {'task_id': row[0], 'title': row[1], 'description': row[2], 'is_sold': row[3]}
+    return {'task_id': row[0], 'title': row[1], 'description': row[2], 'is_done': row[3]}
 
 # remove todo from db
 def remove_todo(todo):
