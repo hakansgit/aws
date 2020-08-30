@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 # Create an object named app
 app = Flask(__name__)
 # Configure sqlite database
-fo = open("pass.txt", "r")
+fo = open("config.txt", "r")
 db_uri = fo.readline().strip()
 db_pw = fo.readline().strip()
 
